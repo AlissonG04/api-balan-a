@@ -3,7 +3,6 @@ const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
 const path = require("path");
-const dotenv = require("dotenv").config();
 
 let historicoDiario = [];
 
@@ -92,6 +91,7 @@ client.on("close", () => {
 });
 
 // Inicia o servidor web
+
 server.listen(PORTA_WEB, () => {
   console.log(`Interface web disponível em http://localhost:${PORTA_WEB}`);
 });
