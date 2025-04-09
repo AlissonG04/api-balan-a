@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Painel Balança</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #f4f4f4;
+        color: #333;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      .header {
+        background: #fff;
+        width: 100%;
+        padding: 10px;
+        display: flex;
+        align-items: center;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .header img {
+        height: 60px;
+        margin-left: 10px;
+      }
+
+      .title-bar {
+        background: #28a745;
+        color: #fff;
+        font-weight: bold;
+        font-size: 2rem;
+        text-align: center;
+        padding: 15px 0;
+        width: 100%;
+      }
+
+      .content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        max-width: 800px;
+        padding: 20px;
+      }
+
+      .weight-display {
+        background: #fff;
+        width: 100%;
+        height: 200px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 5rem;
+        font-weight: bold;
+        border-radius: 12px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      .history-section {
+        width: 100%;
+      }
+
+      .history-title {
+        font-size: 1.2rem;
+        font-weight: bold;
+        margin-bottom: 10px;
+      }
+
+      .history-box {
+        background: #fff;
+        padding: 15px;
+        height: 130px;
+        overflow-y: auto;
+        font-size: 1rem;
+        margin-bottom: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+      }
+
+      .clear-btn {
+        background: #dc3545;
+        color: #fff;
+        font-weight: bold;
+        padding: 10px 20px;
+        border: none;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: background 0.3s;
+        margin-right: 10px;
+      }
+
+      .clear-btn:hover {
+        background: #c82333;
+      }
+
+      .download-btn {
+        background: #007bff;
+        color: #fff;
+        font-weight: bold;
+        padding: 10px 20px;
+        border: none;
+        cursor: pointer;
+        border-radius: 6px;
+        transition: background 0.3s;
+      }
+
+      .download-btn:hover {
+        background: #0056b3;
+      }
+
+      @media (max-width: 600px) {
+        .weight-display {
+          font-size: 3rem;
+          height: 150px;
+        }
+
+        .title-bar {
+          font-size: 1.5rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <img src="logo.png" alt="Calcário Terra Branca" />
+    </div>
+
+    <div class="title-bar">PAINEL BALANÇA 01</div>
+
+    <div class="content">
+      <div class="weight-display" id="pesoAtual">0</div>
+
+      <div class="history-section">
+        <div class="history-title">Histórico de Pesagens</div>
+        <div class="history-box" id="historicoPesagens"></div>
+        <div style="display: flex; gap: 10px">
+          <button class="clear-btn" onclick="limparHistorico()">
+            Limpar Histórico
+          </button>
+          <button class="download-btn" onclick="baixarRelatorio()">
+            Baixar Relatório
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+      const socket = io();
+      let historico = [];
+      let ultimoPesoEstavel = null;
+      let ultimoPesoBruto = null;
+      let timeoutEstabilidade = null;
+
+      function atualizarPesoVisual(peso) {
+        document.getElementById("pesoAtual").textContent = peso;
+      }
+
+      function registrarPesoEstabilizado(peso) {
+        const timestamp = new Date().toLocaleString();
+        historico.unshift(`${timestamp} - ${peso} kg`);
+        if (historico.length > 10) historico.pop();
+        atualizarHistorico();
+        ultimoPesoEstavel = parseFloat(peso);
+      }
+
+      function atualizarHistorico() {
+        const historicoElem = document.getElementById("historicoPesagens");
+        historicoElem.innerHTML = historico
+          .map((item) => `<div>${item}</div>`)
+          .join("");
+      }
+
+      function limparHistorico() {
+        historico = [];
+        atualizarHistorico();
+      }
+
+      function verificarEstabilidade(pesoAtual) {
+        const pesoNumerico = parseFloat(pesoAtual);
+        if (isNaN(pesoNumerico) || pesoNumerico < 200) return;
+
+        if (pesoNumerico === ultimoPesoBruto) {
+          if (!timeoutEstabilidade) {
+            timeoutEstabilidade = setTimeout(() => {
+              registrarPesoEstabilizado(pesoAtual);
+              timeoutEstabilidade = null;
+            }, 2000); // considera estabilizado após 2 segundos
+          }
+        } else {
+          clearTimeout(timeoutEstabilidade);
+          timeoutEstabilidade = null;
+        }
+
+        ultimoPesoBruto = pesoNumerico;
+      }
+
+      function baixarRelatorio() {
+        if (historico.length === 0) {
+          alert("O histórico está vazio!");
+          return;
+        }
+
+        const conteudo = historico.join("\n");
+        const blob = new Blob([conteudo], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `relatorio_pesagens_${
+          new Date().toISOString().split("T")[0]
+        }.txt`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+
+      socket.on("peso", (peso) => {
+        atualizarPesoVisual(peso);
+        verificarEstabilidade(peso);
+      });
+    </script>
+  </body>
+</html>
